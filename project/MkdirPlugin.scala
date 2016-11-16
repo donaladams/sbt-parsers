@@ -3,7 +3,12 @@ import sbt.complete.DefaultParsers._
 import sbt.complete.Parser
 import java.io.File
 
+import Mkdir.{Flags, MkdirOptions, Mode}
+
 object MkdirParser {
+
+
+  import Mkdir._
 
   /* usage: mkdir [-pv] [-m mode] directory */
 
@@ -14,8 +19,14 @@ object MkdirParser {
 
   def oneOf(chars: Set[Char]): Parser[Char] = chars.map(literal).reduce(_ | _)
 
-  val optionFlags = Set('p', 'v')
-  val optionParser: Parser[Set[Char]] = flagParser(optionFlags)
+  val mkdirFlagsParser: Parser[Flags] = {
+    def updateFlags(flags: Flags, char: Char): Flags = char match {
+      case 'p' => flags.copy(createIntermediate = true)
+      case 'v' => flags.copy(verbose = true)
+    }
+    val rawFlags: Parser[Set[Char]] = flagParser(Set('p', 'v'))
+    rawFlags.map { flags => flags.foldLeft(Flags())(updateFlags)}
+  }
 
   /*
 
@@ -46,56 +57,100 @@ object MkdirParser {
 
   */
 
-
   val permissionParser: Parser[Char] = oneOf(Set('r', 's', 't', 'w', 'x', 'X', 'u', 'g', 'o'))
-  val permissions: Parser[Seq[Char]] = permissionParser+
+  val permissions: Parser[Seq[Permission]] = permissionParser.map(Permission)*
 
-  val op: Parser[Char] = oneOf(Set('+', '-', '='))
-  val who: Parser[Char] = oneOf(Set('a', 'u', 'g', 'o'))
-  val action: Parser[(Char, Seq[Char])] = op ~ permissions
-  val clause: Parser[(Seq[Char], Seq[(Char, Seq[Char])])] = (who*) ~ (action+)
-  val symbolicModeParser: Parser[Seq[(Seq[Char], Seq[(Char, Seq[Char])])]] = (clause <~ literal(',').?)+
+  val op: Parser[Op] = oneOf(Set('+', '-', '=')).map(Op(_))
+  val who: Parser[Who] = oneOf(Set('a', 'u', 'g', 'o')).map(Who)
+  val action: Parser[Action] = (op ~ permissions).map(Action.tupled)
+  val clause: Parser[Clause] = ((who*) ~ (action+)).map(Clause.tupled)
 
-  val octalModeParser: Parser[Int] = {
+  val symbolicModeParser: Parser[SymbolicMode] = ((clause <~ literal(',').?)+).map(SymbolicMode)
+
+  val absoluteModeParser: Parser[AbsoluteMode] = {
     val bitParser = oneOf(Set('0', '1', '2', '3', '4', '5', '6', '7'))
     val bits: Parser[Seq[Char]] = bitParser+
 
-    def validate(chars: Seq[Char]): Boolean = chars.nonEmpty && chars.size < 5
-    bits.filter(validate, s => "is not a valid Octal mode").map(_.mkString.toInt)
+    def validate(chars: Seq[Char]): Boolean =
+      chars.nonEmpty && chars.size < 5
+
+    bits
+      .filter(validate, s => "is not a valid Absolute mode")
+      .map(_.mkString.toInt)
+      .map(AbsoluteMode)
   }
 
-  val modeParser: Parser[Any] = ("-m" ~ Space) ~> (octalModeParser | symbolicModeParser)
+  val modeParser: Parser[Mode] = ("-m" ~ Space) ~> (absoluteModeParser | symbolicModeParser)
 
-  val directoryParser: Parser[File] = (OptSpace ~> StringBasic).map(s => new File(s))
+  val directoryParser: Parser[File] = (Space ~> StringBasic).map(s => new File(s))
 
-  val optionsParser: Parser[Seq[Any]] = (OptSpace ~> (optionParser | modeParser))*
+  val optionsParser: Parser[MkdirOptions] = {
+    def buildOptions(options: MkdirOptions, option: Any): MkdirOptions = option match {
+      case m: Mode => options.copy(mode = Some(m))
+      case f: Flags => options.copy(flags = f)
+      case _ => options
+    }
+    val components: Parser[Seq[Any]] = (Space ~> (mkdirFlagsParser | modeParser))*
+    
+    components.map { c => c.foldLeft(MkdirOptions())(buildOptions) }
+  }
 
-  val mkdirParser: Parser[(Seq[Any], File)] = optionsParser ~ directoryParser
+  val mkdirParser: Parser[MkdirCommand] = { (optionsParser ~ directoryParser).map(MkdirCommand.tupled) }
 }
 
 
-case class MkdirOptions(verbose: Boolean = false,
-                        createDirectories: Boolean = false,
-                        mode: Option[String] = None,
-                        directory: Option[String] = None)
 
-object MkdirOptions {
-  case class CmdOpt[T](literal: Char, value: T)
+object Mkdir {
+
+  sealed trait Op {
+    def symbol: Char
+  }
+  object Op {
+    def apply(char: Char): Op = char match {
+      case Plus.symbol => Plus
+      case Minus.symbol => Minus
+      case Equals.symbol => Equals
+    }
+  }
+  case object Plus extends Op {
+    override val symbol = '+'
+  }
+  case object Minus extends Op {
+    override val symbol = '-'
+  }
+  case object Equals extends Op {
+    override val symbol = '='
+  }
+
+  case class Who(char: Char)
+  case class Permission(char: Char)
+  case class Action(op: Op, permissions: Seq[Permission])
+  case class Clause(who: Seq[Who], actions: Seq[Action]) {
+    require(actions.nonEmpty)
+  }
+
+  sealed trait Mode
+  case class SymbolicMode(clauses: Seq[Clause]) extends Mode
+  case class AbsoluteMode(mode: Int) extends Mode
+
+  case class Flags(verbose: Boolean = false, createIntermediate: Boolean = false)
+
+  case class MkdirOptions(flags: Flags = Flags(), mode: Option[Mode] = None)
+
+  case class MkdirCommand(options: MkdirOptions, directory: File)
+
 }
 
 object MkdirPlugin extends AutoPlugin {
 
   import MkdirParser._
-
   override def trigger = noTrigger
-
   override lazy val projectSettings = Seq(
 
     mkdir := {
       val input = mkdirParser.parsed
       println(input)
     }
-
   )
 
   lazy val mkdir = inputKey[Unit]("make directories")
