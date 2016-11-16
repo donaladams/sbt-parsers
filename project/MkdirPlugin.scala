@@ -1,6 +1,7 @@
 import sbt._
 import sbt.complete.DefaultParsers._
 import sbt.complete.Parser
+import java.io.File
 
 object MkdirParser {
 
@@ -11,9 +12,7 @@ object MkdirParser {
     ("-" ~> (singleCharParser+)).map(_.toSet)
   }
 
-//  def disjunctionParser[A, B](as: Seq[A])(p: Parser[B]): Parser[B] = as.map(literal).reduce(_ | _)
-
-  def inSet(chars: Set[Char]): Parser[Char] = chars.map(literal).reduce(_ | _)
+  def oneOf(chars: Set[Char]): Parser[Char] = chars.map(literal).reduce(_ | _)
 
   val optionFlags = Set('p', 'v')
   val optionParser: Parser[Set[Char]] = flagParser(optionFlags)
@@ -48,17 +47,17 @@ object MkdirParser {
   */
 
 
-  val permissionParser: Parser[Char] = inSet(Set('r', 's', 't', 'w', 'x', 'X', 'u', 'g', 'o'))
+  val permissionParser: Parser[Char] = oneOf(Set('r', 's', 't', 'w', 'x', 'X', 'u', 'g', 'o'))
   val permissions: Parser[Seq[Char]] = permissionParser+
 
-  val op: Parser[Char] = inSet(Set('+', '-', '='))
-  val who: Parser[Char] = inSet(Set('a', 'u', 'g', 'o'))
+  val op: Parser[Char] = oneOf(Set('+', '-', '='))
+  val who: Parser[Char] = oneOf(Set('a', 'u', 'g', 'o'))
   val action: Parser[(Char, Seq[Char])] = op ~ permissions
   val clause: Parser[(Seq[Char], Seq[(Char, Seq[Char])])] = (who*) ~ (action+)
   val symbolicModeParser: Parser[Seq[(Seq[Char], Seq[(Char, Seq[Char])])]] = (clause <~ literal(',').?)+
 
   val octalModeParser: Parser[Int] = {
-    val bitParser = inSet(Set('0', '1', '2', '3', '4', '5', '6', '7'))
+    val bitParser = oneOf(Set('0', '1', '2', '3', '4', '5', '6', '7'))
     val bits: Parser[Seq[Char]] = bitParser+
 
     def validate(chars: Seq[Char]): Boolean = chars.nonEmpty && chars.size < 5
@@ -67,10 +66,11 @@ object MkdirParser {
 
   val modeParser: Parser[Any] = ("-m" ~ Space) ~> (octalModeParser | symbolicModeParser)
 
-  val mkdirParser: Parser[Seq[Any]] = {
-    val component: Parser[Any] = OptSpace ~> (optionParser | modeParser)
-    component*
-  }
+  val directoryParser: Parser[File] = (OptSpace ~> StringBasic).map(s => new File(s))
+
+  val optionsParser: Parser[Seq[Any]] = (OptSpace ~> (optionParser | modeParser))*
+
+  val mkdirParser: Parser[(Seq[Any], File)] = optionsParser ~ directoryParser
 }
 
 
