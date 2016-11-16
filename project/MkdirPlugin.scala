@@ -1,9 +1,8 @@
+import java.io.File
+
 import sbt._
 import sbt.complete.DefaultParsers._
 import sbt.complete.Parser
-import java.io.File
-
-import Mkdir.{Flags, MkdirOptions, Mode}
 
 object MkdirParser {
 
@@ -91,11 +90,11 @@ object MkdirParser {
       case _ => options
     }
     val components: Parser[Seq[Any]] = (Space ~> (mkdirFlagsParser | modeParser))*
-    
+
     components.map { c => c.foldLeft(MkdirOptions())(buildOptions) }
   }
 
-  val mkdirParser: Parser[MkdirCommand] = { (optionsParser ~ directoryParser).map(MkdirCommand.tupled) }
+  val mkdirParser: Parser[MkdirCommand] = { (optionsParser ~ (OptSpace ~> directoryParser+)).map(MkdirCommand.tupled) }
 }
 
 
@@ -137,19 +136,20 @@ object Mkdir {
 
   case class MkdirOptions(flags: Flags = Flags(), mode: Option[Mode] = None)
 
-  case class MkdirCommand(options: MkdirOptions, directory: File)
+  case class MkdirCommand(options: MkdirOptions, directories: Seq[File])
 
 }
 
 object MkdirPlugin extends AutoPlugin {
 
+  import Mkdir._
   import MkdirParser._
+
   override def trigger = noTrigger
   override lazy val projectSettings = Seq(
-
     mkdir := {
-      val input = mkdirParser.parsed
-      println(input)
+      val command: MkdirCommand = mkdirParser.parsed
+      println(command)
     }
   )
 
