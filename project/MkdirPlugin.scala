@@ -25,7 +25,7 @@ object MkdirPlugin extends AutoPlugin {
 
     args := { spaceDelimited("").parsed },
 
-    commands ++= Seq(mkdirSbtCmd, mkdirScoptCmd, examples, mkdirSbtFlatCmd)
+    commands ++= Seq(mkdirSbtCmd, mkdirScoptCmd, examples)
   )
 
   lazy val args = inputKey[Seq[String]]("Retrieve the user's args")
@@ -34,11 +34,6 @@ object MkdirPlugin extends AutoPlugin {
 
   def mkdirSbtCmd = Command("mkdirSbtCommand")(_ => mkdirParser) { (state, mkdirCmd: MkdirCommand) =>
     println(mkdirCmd)
-    state
-  }
-
-  def mkdirSbtFlatCmd = Command("mkdirSbtFlatCommand")(_ => mkdirParser) { (state, m: MkdirCommand) =>
-    println(m)
     state
   }
 

@@ -36,7 +36,14 @@ object Mkdir {
   case class MkdirCommand(verbose: Boolean = false,
                           createIntermediate: Boolean = false,
                           mode: Option[Mode] = None,
-                          directories: Seq[File] = Seq())
+                          directories: Seq[File] = Seq()) {
+
+    def valid(): Boolean = {
+      val options = Seq("-m", "-v", "-p")
+      directories.map(d => !options.contains(d.getPath)).forall(identity)
+    }
+
+  }
 
   object MkdirCommand {
 

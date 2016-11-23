@@ -73,7 +73,6 @@ object MkdirParserSBT {
   private val directory: Parser[File] = StringBasic.map(p => new File(p))
   private val directories: Parser[Seq[File]] = (Space ~> directory)+
 
-
   /**
     * Compose and transform basic parsers to return a MkdirCommand
     */
@@ -89,12 +88,14 @@ object MkdirParserSBT {
     mkdirFlat.map(_.foldLeft(MkdirCommand())(MkdirCommand.merge))
   }
 
-  private val mkdirDirectories: Parser[MkdirCommand] = directories.map(ds => MkdirCommand(directories = ds))
+  private val mkdirDirectories: Parser[MkdirCommand] =
+    directories.map(ds => MkdirCommand(directories = ds))
 
   val mkdirParser: Parser[MkdirCommand] = {
     (mkdirOptions ~ mkdirDirectories)
       .map(x => Seq(x._1, x._2))
       .map(_.foldLeft(MkdirCommand())(MkdirCommand.merge))
+      .filter(_.valid(), s => "usage: mkdir [-pv] [-m mode] directory")
   }
 
 
