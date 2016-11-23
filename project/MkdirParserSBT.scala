@@ -27,65 +27,77 @@ object MkdirParserSBT {
   g=u-w         set the group bits equal to the user bits, but clear the group write bit.
   */
 
-
   import Mkdir._
 
-  private def flagParser(flags: Set[Char]): Parser[Set[Char]] = {
-    val singleCharParser: Parser[Char] = flags.map(literal).reduce(_ | _)
-    ("-" ~> (singleCharParser+)).map(_.toSet)
+  /**
+    * Boolean options
+    */
+  private val optionFlags = Set('p', 'v')
+  private def flag: Parser[Char] = chars(optionFlags.mkString)
+  private def flags: Parser[Set[Char]] = {
+    val cmdLineFlag: Parser[Seq[Char]] = token(Space ~> literal('-')) ~> token(flag+)
+
+    cmdLineFlag.*.map(_.flatten.toSet)
   }
 
-  private def oneOf(chars: Set[Char]): Parser[Char] = chars.map(literal).reduce(_ | _)
+  /**
+    * Symbolic mode parsers
+    */
+  private val permissionChars = Set('r', 's', 't', 'w', 'x', 'X', 'u', 'g', 'o')
+  private val opChars = Set('+', '-', '=')
+  private val whoChars = Set('a', 'u', 'g', 'o')
+  private val octalChars = Set('0', '1', '2', '3', '4', '5', '6', '7')
 
-  private val mkdirFlagsParser: Parser[Flags] = {
-    def updateFlags(flags: Flags, char: Char): Flags = char match {
-      case 'p' => flags.copy(createIntermediate = true)
-      case 'v' => flags.copy(verbose = true)
-    }
-    val rawFlags: Parser[Set[Char]] = flagParser(Set('p', 'v'))
-    rawFlags.map { flags => flags.foldLeft(Flags())(updateFlags)}
-  }
-
-  private val permissionParser: Parser[Char] = oneOf(Set('r', 's', 't', 'w', 'x', 'X', 'u', 'g', 'o'))
-  private val permissions: Parser[Seq[Permission]] = permissionParser.map(Permission)*
-
-  private val op: Parser[Op] = oneOf(Set('+', '-', '=')).map(Op(_))
-  private val who: Parser[Who] = oneOf(Set('a', 'u', 'g', 'o')).map(Who)
+  private val permissions: Parser[Seq[Permission]] = chars(permissionChars.mkString).map(Permission)*
+  private val op: Parser[Op] = chars(opChars.mkString).map(Op(_))
+  private val who: Parser[Who] = chars(whoChars.mkString).map(Who)
   private val action: Parser[Action] = (op ~ permissions).map(Action.tupled)
   private val clause: Parser[Clause] = ((who*) ~ (action+)).map(Clause.tupled)
+  private val symbolicMode: Parser[SymbolicMode] = ((clause <~ ','.?)+).map(SymbolicMode)
 
-  private val symbolicModeParser: Parser[SymbolicMode] = ((clause <~ literal(',').?)+).map(SymbolicMode)
+  /**
+    * Absolute mode parsers
+    */
+  val octalDigit: Parser[Char] = chars(octalChars.mkString) // chars matches any Char in the given string
+  val octalNumber: Parser[String] = (octalDigit+).map(_.mkString)
+  val absoluteMode: Parser[AbsoluteMode] = octalNumber.map(AbsoluteMode)
 
-  private val absoluteModeParser: Parser[AbsoluteMode] = {
-    val bitParser = oneOf(Set('0', '1', '2', '3', '4', '5', '6', '7'))
-    val bits: Parser[Seq[Char]] = bitParser+
+  /**
+    * Composes an AbsoluteMode parser and a SymbolicMode parser to parse a valid mode from input
+    */
+  private val modeParser: Parser[Mode] = ("-m" ~ Space) ~> (absoluteMode | symbolicMode)
 
-    def validate(chars: Seq[Char]): Boolean =
-      chars.nonEmpty && chars.size < 5
+  /**
+    * Directory parsers
+    */
+  private val directory: Parser[File] = StringBasic.map(p => new File(p))
+  private val directories: Parser[Seq[File]] = (Space ~> directory)+
 
-    bits
-      .filter(validate, s => "is not a valid Absolute mode")
-      .map(_.mkString.toInt)
-      .map(AbsoluteMode)
+
+  /**
+    * Compose and transform basic parsers to return a MkdirCommand
+    */
+  private val mkdirMode: Parser[MkdirCommand] = modeParser.map(m => MkdirCommand(mode = Some(m)))
+
+  private val mkdirFlags: Parser[MkdirCommand] = flags.map { f =>
+    MkdirCommand(verbose = f.contains('v'), createIntermediate = f.contains('p'))
   }
 
-  private val modeParser: Parser[Mode] = ("-m" ~ Space) ~> (absoluteModeParser | symbolicModeParser)
+  private val mkdirOptions: Parser[MkdirCommand] = {
+    val mkdirFlat: Parser[Seq[MkdirCommand]] = (OptSpace ~> (mkdirFlags | mkdirMode))*
 
-  private val directoryParser: Parser[File] = (Space ~> StringBasic).map(s => new File(s))
-
-  private val optionsParser: Parser[MkdirOptions] = {
-    def buildOptions(options: MkdirOptions, option: Any): MkdirOptions = option match {
-      case m: Mode => options.copy(mode = Some(m))
-      case f: Flags => options.copy(flags = f)
-      case _ => options
-    }
-    val components: Parser[Seq[Any]] = (Space ~> (mkdirFlagsParser | modeParser))*
-
-    components.map { c => c.foldLeft(MkdirOptions())(buildOptions) }
+    mkdirFlat.map(_.foldLeft(MkdirCommand())(MkdirCommand.merge))
   }
+
+  private val mkdirDirectories: Parser[MkdirCommand] = directories.map(ds => MkdirCommand(directories = ds))
 
   val mkdirParser: Parser[MkdirCommand] = {
-    (optionsParser ~ (OptSpace ~> directoryParser+)).map(MkdirCommand.tupled)
+    (mkdirOptions ~ mkdirDirectories)
+      .map(x => Seq(x._1, x._2))
+      .map(_.foldLeft(MkdirCommand())(MkdirCommand.merge))
   }
+
+
+
   
 }

@@ -25,20 +25,20 @@ object MkdirPlugin extends AutoPlugin {
 
     args := { spaceDelimited("").parsed },
 
-    commands ++= Seq(hello, mkdirSbtCmd, mkdirScoptCmd)
+    commands ++= Seq(mkdirSbtCmd, mkdirScoptCmd, examples, mkdirSbtFlatCmd)
   )
 
   lazy val args = inputKey[Seq[String]]("Retrieve the user's args")
   lazy val mkdir = inputKey[Unit]("make directories with sbt parsers")
   lazy val mkdirScopt = inputKey[Unit]("make directories with scopt")
 
-  def hello = Command.args("hello", "<name>") { (state, args) =>
-    println("Hi " + args.mkString(" "))
+  def mkdirSbtCmd = Command("mkdirSbtCommand")(_ => mkdirParser) { (state, mkdirCmd: MkdirCommand) =>
+    println(mkdirCmd)
     state
   }
 
-  def mkdirSbtCmd = Command("mkdirSbtCommand")(_ => mkdirParser) { (state, mkdirCmd: MkdirCommand) =>
-    println(mkdirCmd)
+  def mkdirSbtFlatCmd = Command("mkdirSbtFlatCommand")(_ => mkdirParser) { (state, m: MkdirCommand) =>
+    println(m)
     state
   }
 
@@ -49,5 +49,12 @@ object MkdirPlugin extends AutoPlugin {
     }
     state
   }
+
+  def examples = Command("examples")(_ => ExamplesParser.examplesParser) { (state, parsed) =>
+    println(parsed)
+    state
+  }
+
+
 }
 

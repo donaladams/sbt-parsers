@@ -13,7 +13,6 @@ object MkdirParserScopt {
                          mode: String = "0777",
                          directories: Seq[File] = Seq())
 
-
   lazy val parser = new scopt.OptionParser[MkdirConfig]("mkdir") {
     head("mkdir", "make directories")
 

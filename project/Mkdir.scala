@@ -31,12 +31,24 @@ object Mkdir {
 
   sealed trait Mode
   case class SymbolicMode(clauses: Seq[Clause]) extends Mode
-  case class AbsoluteMode(mode: Int) extends Mode
+  case class AbsoluteMode(mode: String) extends Mode
 
-  case class Flags(verbose: Boolean = false, createIntermediate: Boolean = false)
+  case class MkdirCommand(verbose: Boolean = false,
+                          createIntermediate: Boolean = false,
+                          mode: Option[Mode] = None,
+                          directories: Seq[File] = Seq())
 
-  case class MkdirOptions(flags: Flags = Flags(), mode: Option[Mode] = None)
+  object MkdirCommand {
 
-  case class MkdirCommand(options: MkdirOptions, directories: Seq[File])
+    def merge(m1: MkdirCommand, m2: MkdirCommand): MkdirCommand = {
+      m1.copy(
+        createIntermediate = m1.createIntermediate || m2.createIntermediate,
+        verbose = m1.verbose || m2.verbose,
+        mode = m1.mode.orElse(m2.mode),
+        directories = m1.directories ++ m2.directories
+      )
+    }
+
+  }
 
 }
