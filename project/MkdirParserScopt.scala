@@ -2,10 +2,6 @@ import java.io.File
 import sbt.complete.DefaultParsers._
 import sbt.complete.Parser
 
-
-
-
-
 object MkdirParserScopt {
 
   case class MkdirConfig(createIntermediate: Boolean = false,
@@ -34,28 +30,8 @@ object MkdirParserScopt {
       c.copy(directories = c.directories :+ x)
     ).text("directories to create")
 
+    // This prevents the sbt session from ending when the parsing fails.
     override def terminate(exitState: Either[String, Unit]): Unit = ()
   }
 
-  lazy val mkdirParserScopt: Parser[MkdirConfig] = {
-
-    println("two")
-
-    def runParser(input: Seq[String]): Parser[MkdirConfig] = {
-      println("parse!")
-      parser.parse(input, MkdirConfig()) match {
-        case Some(conf) => Parser.success(conf)
-        case None => Parser.failure("Oh No!")
-      }
-    }
-
-    spaceDelimited("<arg>")
-      .map(echo(_, "Input"))
-      .flatMap(runParser)
-  }
-
-  def echo[T](t: T, prefix: String = ""): T = {
-    println(prefix + t)
-    t
-  }
 }

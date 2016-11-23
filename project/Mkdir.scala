@@ -58,4 +58,8 @@ object Mkdir {
 
   }
 
+  def run(command: MkdirCommand): Unit = {
+    println(command)
+  }
+
 }

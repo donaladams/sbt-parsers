@@ -8,14 +8,35 @@ object MkdirParserSBT {
   /*
   usage: mkdir [-pv] [-m mode] directory
 
-  mode         ::= clause [, clause ...]
-  clause       ::= [who ...] [action ...] action
-  action       ::= op [perm ...]
-  who          ::= a | u | g | o
-  op           ::= + | - | =
-  perm         ::= r | s | t | w | x | X | u | g | o
+  // top level rule defining mkdir
+  cmd 		::= mkdir [options] directories
+  directories ::=  [path ...] path
+  // command line options
+  options 	::= mode_option | [flag_options ...] flag_options
 
-  Examples:
+  // modes from chmod
+  mode_option 	::= -m mode
+
+  mode 		::= symbolic_mode | absolute_mode
+  // absolute modes e.g. 0777
+  absolute_mode 	::= octal_number
+  octal_number    ::= octal_digit | octal_number
+  octal_digit 	::= 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7
+
+  // symbolic modes e.g. u=rwx,go=rx
+  symbolic_mode 	::= clause [, clause ...]
+  clause        	::= [who ...] [action ...] action
+  action        	::= op [perm ...]
+  who           	::= a | u | g | o
+  op            	::= + | - | =
+  perm          	::= r | s | t | w | x | X | u | g | o
+
+  // boolean flags
+  flag_options 	::= - [flag ...] flag
+  flag 			::= v | p
+
+
+  Mode Examples:
   644           make a file readable by anyone and writable by the owner only.
   go-w          deny write permission to group and others.
   =rw,+X        set the read and write permissions to the usual defaults, but retain any execute permissions that are currently set.
@@ -98,7 +119,4 @@ object MkdirParserSBT {
       .filter(_.valid(), s => "usage: mkdir [-pv] [-m mode] directory")
   }
 
-
-
-  
 }
