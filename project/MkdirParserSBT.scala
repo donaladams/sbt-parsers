@@ -54,11 +54,12 @@ object MkdirParserSBT {
     * Boolean options
     */
   private val optionFlags = Set('p', 'v')
-  private def flag: Parser[Char] = chars(optionFlags.mkString)
-  private def flags: Parser[Set[Char]] = {
-    val cmdLineFlag: Parser[Seq[Char]] = token(Space ~> literal('-')) ~> token(flag+)
+  private val flag: Parser[Char] = chars(optionFlags.mkString)
+  private val flag_option: Parser[Char] = literal('-') ~> flag
+  private val flag_options: Parser[Set[Char]] = {
+    val zeroOrMore: Parser[Seq[Char]] = (Space ~> flag_option)*
 
-    cmdLineFlag.*.map(_.flatten.toSet)
+    zeroOrMore.map(_.toSet)
   }
 
   /**
@@ -99,7 +100,7 @@ object MkdirParserSBT {
     */
   private val mkdirMode: Parser[MkdirCommand] = modeParser.map(m => MkdirCommand(mode = Some(m)))
 
-  private val mkdirFlags: Parser[MkdirCommand] = flags.map { f =>
+  private val mkdirFlags: Parser[MkdirCommand] = flag_options.map { f =>
     MkdirCommand(verbose = f.contains('v'), createIntermediate = f.contains('p'))
   }
 

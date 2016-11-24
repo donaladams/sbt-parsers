@@ -21,11 +21,12 @@ mkdir := {
 }
 
 
-
-def mkdirCmd = Command("mkdirCommand")(_ => mkdirParser) { (state, mkdirCmd: MkdirCommand) =>
+def cmd(state: State, mkdirCmd: MkdirCommand): State = {
   Mkdir.run(mkdirCmd)
   state
 }
+
+val mkdirCmd = Command("mkdirCommand")(_ => mkdirParser)(cmd)
 
 lazy val mkdirScopt = inputKey[Unit]("make directories with scopt")
 

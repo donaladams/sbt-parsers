@@ -1,6 +1,4 @@
 import java.io.File
-import sbt.complete.DefaultParsers._
-import sbt.complete.Parser
 
 object MkdirParserScopt {
 
